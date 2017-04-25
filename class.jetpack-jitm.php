@@ -35,15 +35,88 @@ class Jetpack_JITM {
 	}
 
 	private function __construct() {
-		if ( ! Jetpack::is_active() || self::is_jitm_dismissed() ) {
-			return;
-		}
 		add_action( 'current_screen', array( $this, 'prepare_jitms' ) );
 	}
 
 	function get_emblem()
 	{
 		return '<div class="jp-emblem">' . Jetpack::get_jp_emblem() . '</div>';
+	}
+
+	function validate_screens( $screen, &$config ) {
+		if ( isset( $config['message']['screens'] ) ) {
+			foreach ( $config['message']['screens'] as $location ) {
+				if ( $location == $screen->base ) {
+					// we are at a matching location, show this jitm
+					return true;
+				}
+			}
+
+			// we are not at a matching location, do not show the jitm
+			return false;
+		}
+
+		// this jitm has no default location, show it everywhere
+		return true;
+	}
+
+	function validate_plugins( &$config ) {
+		$return = true;
+		if ( isset( $config['inactive_plugins'] ) ) {
+			$return = array_reduce( $config['inactive_plugins'], function ( $accumulator, $plugin ) {
+				if ( Jetpack::is_plugin_active( $plugin ) && $accumulator ) {
+					return false;
+				}
+
+				return $accumulator;
+			}, true );
+		}
+
+		if ( $return && isset( $config['active_plugins'] ) ) {
+			$return = array_reduce( $config['active_plugins'], function ( $accumulator, $plugin ) {
+				if ( ! Jetpack::is_plugin_active( $plugin ) && $accumulator ) {
+					return false;
+				}
+
+				return $accumulator;
+			}, $return );
+		}
+
+		return $return;
+	}
+
+	function validate_module_activator( &$config ) {
+		if ( isset( $config['module_activator'] ) && $config['module_activator'] ) {
+			return current_user_can( 'jetpack_manage_modules' );
+		}
+
+		return true;
+	}
+
+	function validate_query_string( &$config ) {
+		if ( isset( $config['has_query'] ) ) {
+			return array_reduce( $config['has_query'], function ( $accumulator, $query ) {
+				if ( $accumulator && isset( $_GET[ $query['key'] ] ) && $_GET[ $query['key'] ] == $query['value'] ) {
+					return $accumulator;
+				}
+
+				return false;
+			}, true );
+		}
+
+		return true;
+	}
+
+	function validate_emblem( &$config ) {
+		if ( isset( $config['message']['emblem'] ) ) {
+			if ( $config['message']['emblem'] === true ) {
+				return self::get_emblem();
+			}
+
+			return $config['message']['emblem'];
+		}
+
+		return '';
 	}
 
 	/**
@@ -60,33 +133,56 @@ class Jetpack_JITM {
 			return;
 		}
 
-		if ( 'edit-comments' == $screen->base && ! Jetpack::is_plugin_active( 'akismet/akismet.php' ) ) {
-			add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
-			add_action( 'admin_notices', array( $this, 'akismet_msg' ) );
-		}
-		elseif (
-			'post' == $screen->base
-			&& ( isset( $_GET['message'] ) && 6 == $_GET['message'] )
-			&& ! Jetpack::is_plugin_active( 'vaultpress/vaultpress.php' )
-		) {
-			add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
-			add_action( 'edit_form_top', array( $this, 'backups_after_publish_msg' ) );
-		}
-		elseif ( 'update-core' == $screen->base && ! Jetpack::is_plugin_active( 'vaultpress/vaultpress.php' ) ) {
-			add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
-			add_action( 'admin_notices', array( $this, 'backups_updates_msg' ) );
-		}
-		elseif ( ! Jetpack::is_plugin_active( 'woocommerce-services/woocommerce-services.php' ) ) {
-			 $pages_to_display = array(
-				 'woocommerce_page_wc-settings', // WooCommerce > Settings
-				 'edit-shop_order', // WooCommerce > Orders
-				 'shop_order', // WooCommerce > Edit Order
-			 );
+		$config = Jetpack::get_option( 'jitm-config', Jetpack_JITM_Config::default_config() );
 
-			if ( in_array( $screen->id, $pages_to_display ) ) {
-				add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
-				add_action( 'admin_notices', array( $this, 'woocommerce_services_msg' ) );
+		$version = $config['version'];
+		unset( $config['version'] );
+
+		foreach ( $config as $item => $value ) {
+			if ( ! isset( $value['message'] ) ) {
+				// if there's nothing to show -- bail
+				continue;
 			}
+
+			if ( ! $this->validate_module_activator( $value ) ) {
+				continue;
+			}
+
+			if ( ! $this->validate_screens( $screen, $value ) ) {
+				continue;
+			}
+
+			if ( ! $this->validate_plugins( $value ) ) {
+				continue;
+			}
+
+			if ( ! $this->validate_query_string( $value ) ) {
+				continue;
+			}
+
+			$emblem = $this->validate_emblem( $value );
+
+			switch ( $screen->base ) {
+				case 'edit-comments':
+					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
+					add_action( 'admin_notices', $this->edit_comments_message( $value['message']['content'], $item, $value['message']['CTA'], $emblem ) );
+					break;
+				case 'post':
+					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
+					add_action( 'edit_form_top', array( $this, 'backups_after_publish_msg' ) );
+					break;
+				case 'update-core':
+					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
+					add_action( 'admin_notices', array( $this, 'backups_updates_msg' ) );
+					break;
+				case 'woocommerce_page_wc-settings':
+				case 'edit_shop_order':
+				case 'shop_order':
+					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
+					add_action( 'admin_notices', array( $this, 'woocommerce_services_msg' ) );
+					break;
+			}
+
 		}
 	}
 
@@ -342,6 +438,37 @@ class Jetpack_JITM {
 		$jetpack->do_stats( 'server_side' );
 	}
 
+	function edit_comments_message( $message, $stat, $CTA, $emblem ) {
+		$jitm_stats_url      = Jetpack::build_stats_url( array( 'x_jetpack-jitm' => $stat ) );
+		$normalized_site_url = Jetpack::build_raw_urls( get_home_url() );
+		$url                 = 'https://jetpack.com/redirect/?source=jitm-' . $stat . '&site=' . $normalized_site_url;
+
+		return function () use ( $message, $jitm_stats_url, $emblem, $url, $stat, $CTA ) {
+			?>
+			<div class="jp-jitm" data-stats_url="<?php echo esc_url( $jitm_stats_url ); ?>">
+				<a href="#" data-module="<?php echo esc_attr( $stat ) ?>" class="dismiss"><span
+							class="genericon genericon-close"></span></a>
+				<?php echo $emblem ?>
+				<p class="msg">
+					<?php echo esc_html( $message ) ?>
+				</p>
+				<?php if ( ! empty( $CTA ) ): ?>
+					<p>
+						<a href="<?php echo esc_url( $url ); ?>" target="_blank"
+						   title="<?php echo esc_attr( $CTA['message'] ) ?>"
+						   data-module="<?php echo esc_attr( $stat ) ?>"
+						   data-jptracks-name="nudge_click" data-jptracks-prop="jitm-<?php echo esc_attr( $stat ) ?>"
+						   class="button button-jetpack launch jptracks"><?php echo esc_html( $CTA['message'] ); ?></a>
+					</p>
+				<?php endif; ?>
+			</div>
+			<?php
+			$jetpack = Jetpack::init();
+			$jetpack->stat( 'jitm', $stat . '-viewed-' . JETPACK__VERSION );
+			$jetpack->do_stats( 'server-side' );
+		};
+	}
+
 	/**
 	 * Display JITM in Comments screen prompting user to enable Akismet.
 	 *
@@ -349,8 +476,8 @@ class Jetpack_JITM {
 	 */
 	function akismet_msg() {
 		$normalized_site_url = Jetpack::build_raw_urls( get_home_url() );
-		$url = 'https://jetpack.com/redirect/?source=jitm-akismet&site=' . $normalized_site_url;
-		$jitm_stats_url = Jetpack::build_stats_url( array( 'x_jetpack-jitm' => 'akismet' ) );
+		$url                 = 'https://jetpack.com/redirect/?source=jitm-akismet&site=' . $normalized_site_url;
+		$jitm_stats_url      = Jetpack::build_stats_url( array( 'x_jetpack-jitm' => 'akismet' ) );
 		?>
 		<div class="jp-jitm" data-stats_url="<?php echo esc_url( $jitm_stats_url ); ?>">
 			<a href="#" data-module="akismet" class="dismiss"><span class="genericon genericon-close"></span></a>

@@ -111,7 +111,7 @@ class Jetpack_JITM_Config {
 	}
 
 	static function default_config() {
-		$rule = new Jetpack_JITM_Config( 'akismet_msg' );
+		$rule = new Jetpack_JITM_Config( 'akismet' );
 		$rule->plugin_inactive( 'akismet/akismet.php' )
 		     ->user_can_activate_modules()
 		     ->show( esc_html__( "Spam affects your site's legitimacy, protect your site with Akismet.", 'jetpack' ) )
@@ -152,5 +152,7 @@ class Jetpack_JITM_Config {
 				</svg>" )
 		     ->with_CTA( 'Activate WooCommerce Services', 'jetpack_woo_services_redirect' )
 		     ->track( 'jitm', 'wooservices-viewed-' . JETPACK__VERSION );
+
+		return self::$config;
 	}
 }

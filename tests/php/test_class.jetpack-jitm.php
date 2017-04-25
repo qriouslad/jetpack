@@ -1,5 +1,6 @@
 <?php
 
+require_once( JETPACK__PLUGIN_DIR . 'class.jetpack-jitm-config.php');
 require_once( JETPACK__PLUGIN_DIR . 'class.jetpack-jitm.php' );
 
 // Allows us to instantiate JITM class without calling anything
