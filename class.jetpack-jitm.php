@@ -60,26 +60,30 @@ class Jetpack_JITM {
 		return true;
 	}
 
+	function reduce_inactive_plugins( $accumulator, $plugin ) {
+		if ( Jetpack::is_plugin_active( $plugin ) && $accumulator ) {
+			return false;
+		}
+
+		return $accumulator;
+	}
+
+	function reduce_active_plugins( $accumulator, $plugin ) {
+		if ( ! Jetpack::is_plugin_active( $plugin ) && $accumulator ) {
+			return false;
+		}
+
+		return $accumulator;
+	}
+
 	function validate_plugins( &$config ) {
 		$return = true;
 		if ( isset( $config['inactive_plugins'] ) ) {
-			$return = array_reduce( $config['inactive_plugins'], function ( $accumulator, $plugin ) {
-				if ( Jetpack::is_plugin_active( $plugin ) && $accumulator ) {
-					return false;
-				}
-
-				return $accumulator;
-			}, true );
+			$return = array_reduce( $config['inactive_plugins'], array( $this, 'reduce_inactive_plugins' ), 1 );
 		}
 
 		if ( $return && isset( $config['active_plugins'] ) ) {
-			$return = array_reduce( $config['active_plugins'], function ( $accumulator, $plugin ) {
-				if ( ! Jetpack::is_plugin_active( $plugin ) && $accumulator ) {
-					return false;
-				}
-
-				return $accumulator;
-			}, $return );
+			$return = array_reduce( $config['active_plugins'], array( $this, 'reduce_active_plugins' ), $return );
 		}
 
 		return $return;
@@ -93,15 +97,17 @@ class Jetpack_JITM {
 		return true;
 	}
 
+	function reduce_query_array( $accumulator, $query ) {
+		if ( $accumulator && isset( $_GET[ $query['key'] ] ) && $_GET[ $query['key'] ] == $query['value'] ) {
+			return $accumulator;
+		}
+
+		return false;
+	}
+
 	function validate_query_string( &$config ) {
 		if ( isset( $config['has_query'] ) ) {
-			return array_reduce( $config['has_query'], function ( $accumulator, $query ) {
-				if ( $accumulator && isset( $_GET[ $query['key'] ] ) && $_GET[ $query['key'] ] == $query['value'] ) {
-					return $accumulator;
-				}
-
-				return false;
-			}, true );
+			return array_reduce( $config['has_query'], array( $this, 'reduce_query_array' ), 1 );
 		}
 
 		return true;
