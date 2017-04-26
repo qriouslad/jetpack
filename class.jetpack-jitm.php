@@ -115,14 +115,12 @@ class Jetpack_JITM {
 
 	function validate_emblem( &$config ) {
 		if ( isset( $config['message']['emblem'] ) ) {
-			if ( $config['message']['emblem'] === true ) {
-				return self::get_emblem();
+			if ( true === $config['message']['emblem'] ) {
+				$config['message']['emblem'] = self::get_emblem();
 			}
-
-			return $config['message']['emblem'];
 		}
 
-		return '';
+		$config['message']['emblem'] = '';
 	}
 
 	/**
@@ -166,12 +164,12 @@ class Jetpack_JITM {
 				continue;
 			}
 
-			$emblem = $this->validate_emblem( $value );
+			$this->validate_emblem( $value );
 
 			switch ( $screen->base ) {
 				case 'edit-comments':
 					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
-					add_action( 'admin_notices', $this->edit_comments_message( $value['message']['content'], $item, $value['message']['CTA'], $emblem ) );
+					add_action( 'admin_notices', array( $this, 'akismet_msg' ) );
 					break;
 				case 'post':
 					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
@@ -445,34 +443,7 @@ class Jetpack_JITM {
 	}
 
 	function edit_comments_message( $message, $stat, $CTA, $emblem ) {
-		$jitm_stats_url      = Jetpack::build_stats_url( array( 'x_jetpack-jitm' => $stat ) );
-		$normalized_site_url = Jetpack::build_raw_urls( get_home_url() );
-		$url                 = 'https://jetpack.com/redirect/?source=jitm-' . $stat . '&site=' . $normalized_site_url;
 
-		return function () use ( $message, $jitm_stats_url, $emblem, $url, $stat, $CTA ) {
-			?>
-			<div class="jp-jitm" data-stats_url="<?php echo esc_url( $jitm_stats_url ); ?>">
-				<a href="#" data-module="<?php echo esc_attr( $stat ) ?>" class="dismiss"><span
-							class="genericon genericon-close"></span></a>
-				<?php echo $emblem ?>
-				<p class="msg">
-					<?php echo esc_html( $message ) ?>
-				</p>
-				<?php if ( ! empty( $CTA ) ): ?>
-					<p>
-						<a href="<?php echo esc_url( $url ); ?>" target="_blank"
-						   title="<?php echo esc_attr( $CTA['message'] ) ?>"
-						   data-module="<?php echo esc_attr( $stat ) ?>"
-						   data-jptracks-name="nudge_click" data-jptracks-prop="jitm-<?php echo esc_attr( $stat ) ?>"
-						   class="button button-jetpack launch jptracks"><?php echo esc_html( $CTA['message'] ); ?></a>
-					</p>
-				<?php endif; ?>
-			</div>
-			<?php
-			$jetpack = Jetpack::init();
-			$jetpack->stat( 'jitm', $stat . '-viewed-' . JETPACK__VERSION );
-			$jetpack->do_stats( 'server-side' );
-		};
 	}
 
 	/**
