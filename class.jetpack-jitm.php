@@ -133,61 +133,48 @@ class Jetpack_JITM {
 	 * @param object $screen
 	 */
 	function prepare_jitms( $screen ) {
-		if ( ! current_user_can( 'jetpack_manage_modules' ) ) {
+		/*if ( ! current_user_can( 'jetpack_manage_modules' ) ) {
 			return;
+		}*/
+		add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
+		add_action('admin_notices', array($this, 'ajax_message'));
+	}
+
+	function ajax_message() {
+		global $screen;
+		?>
+		<div class="jetpack-jitm-message" data-message-path="<? echo esc_attr($screen->base) ?>"></div>
+		<?php
+	}
+
+	function display_jitm_message() {
+		global $screen;
+
+		switch ( $screen->base ) {
+			case 'edit-comments':
+				$this->display_basic_message();
+				add_action( 'admin_notices', array( $this, 'akismet_msg' ) );
+				break;
+			case 'post':
+
+				break;
+			case 'update-core':
+				add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
+				add_action( 'admin_notices', array( $this, 'backups_updates_msg' ) );
+				break;
+			case 'woocommerce_page_wc-settings':
+			case 'edit_shop_order':
+			case 'shop_order':
+				add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
+				add_action( 'admin_notices', array( $this, 'woocommerce_services_msg' ) );
+				break;
 		}
+	}
 
-		$config = Jetpack::get_option( 'jitm-config', Jetpack_JITM_Config::default_config() );
+	function basic_message() {
+		return function () {
 
-		$version = $config['version'];
-		unset( $config['version'] );
-
-		foreach ( $config as $item => $value ) {
-			if ( ! isset( $value['message'] ) ) {
-				// if there's nothing to show -- bail
-				continue;
-			}
-
-			if ( ! $this->validate_module_activator( $value ) ) {
-				continue;
-			}
-
-			if ( ! $this->validate_screens( $screen, $value ) ) {
-				continue;
-			}
-
-			if ( ! $this->validate_plugins( $value ) ) {
-				continue;
-			}
-
-			if ( ! $this->validate_query_string( $value ) ) {
-				continue;
-			}
-
-			$this->validate_emblem( $value );
-
-			switch ( $screen->base ) {
-				case 'edit-comments':
-					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
-					add_action( 'admin_notices', array( $this, 'akismet_msg' ) );
-					break;
-				case 'post':
-					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
-					add_action( 'edit_form_top', array( $this, 'backups_after_publish_msg' ) );
-					break;
-				case 'update-core':
-					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
-					add_action( 'admin_notices', array( $this, 'backups_updates_msg' ) );
-					break;
-				case 'woocommerce_page_wc-settings':
-				case 'edit_shop_order':
-				case 'shop_order':
-					add_action( 'admin_enqueue_scripts', array( $this, 'jitm_enqueue_files' ) );
-					add_action( 'admin_notices', array( $this, 'woocommerce_services_msg' ) );
-					break;
-			}
-
-		}
+		};
 	}
 
 	/*
@@ -442,10 +429,6 @@ class Jetpack_JITM {
 		$jetpack->do_stats( 'server_side' );
 	}
 
-	function edit_comments_message( $message, $stat, $CTA, $emblem ) {
-
-	}
-
 	/**
 	 * Display JITM in Comments screen prompting user to enable Akismet.
 	 *
@@ -594,6 +577,7 @@ class Jetpack_JITM {
 	*/
 	function jitm_enqueue_files( $hook ) {
 
+
 		$wp_styles = new WP_Styles();
 		$min = ( defined( 'SCRIPT_DEBUG' ) && SCRIPT_DEBUG ) ? '' : '.min';
 		wp_enqueue_style( 'jetpack-jitm-css', plugins_url( "css/jetpack-admin-jitm{$min}.css", JETPACK__PLUGIN_FILE ), false, JETPACK__VERSION . '-201243242' );
@@ -601,6 +585,10 @@ class Jetpack_JITM {
 
 		//Build stats url for tracking manage button
 		$jitm_stats_url = Jetpack::build_stats_url( array( 'x_jetpack-jitm' => 'wordpresstools' ) );
+
+		wp_enqueue_script( 'jetpack-jitm-new', plugins_url( '_inc/jetpack-jitm-new.js', JETPACK__PLUGIN_FILE ), array( 'jquery' ), JETPACK__VERSION, true );
+
+		return;
 
 		// Enqueue javascript to handle jitm notice events
 		wp_enqueue_script( 'jetpack-jitm-js', plugins_url( '_inc/jetpack-jitm.js', JETPACK__PLUGIN_FILE ),
