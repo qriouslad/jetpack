@@ -95,7 +95,6 @@ require_once( JETPACK__PLUGIN_DIR . 'class.jetpack-connection-banner.php'  );
 
 if ( is_admin() ) {
 	require_once( JETPACK__PLUGIN_DIR . 'class.jetpack-admin.php'       );
-	require_once( JETPACK__PLUGIN_DIR . 'class.jetpack-jitm-config.php' );
 	require_once( JETPACK__PLUGIN_DIR . 'class.jetpack-jitm.php'        );
 	require_once( JETPACK__PLUGIN_DIR . 'class.jetpack-debugger.php'    );
 }
