@@ -134,6 +134,8 @@ class Jetpack_JITM {
 			array( 'user_id' => $user->ID, 'user_roles' => implode( ',', $user->roles ) )
 		);
 
+		var_dump($wpcom_response);
+
 		// silently fail...might be helpful to track it?
 		if ( is_wp_error( $wpcom_response ) ) {
 			return array();
